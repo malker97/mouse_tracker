@@ -4,14 +4,14 @@ import os
 import threading
 from collections import deque
 from pynput import mouse
-
+import platform
 # 配置参数
 buffer_duration = 1.0  # 记录点击前 1 秒和后 1 秒的数据
-sampling_interval = 1 / 50  # 每秒最多 50 次采样（20 毫秒）
+sampling_interval = 1 / 100  # 每秒最多 50 次采样（20 毫秒）
 save_directory = "mouse_clicks"  # 存储所有子表格
 click_count = 0  # 记录点击次数
 last_sample_time = 0  # 记录上次采样时间
-
+os_name = platform.system().lower()  # 获取操作系统名称
 # 创建存储目录
 if not os.path.exists(save_directory):
     os.makedirs(save_directory)
@@ -82,7 +82,7 @@ def delayed_save(click_data):
     full_click_data = click_data + click_events
 
     # 生成文件路径
-    filename = os.path.join(save_directory, f"click_{click_count}.csv")
+    filename = os.path.join(save_directory, f"{os_name}_click_{click_count}.csv")
 
     # 保存数据
     save_to_csv(filename, full_click_data)
