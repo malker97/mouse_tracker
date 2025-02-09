@@ -1,13 +1,16 @@
 import time
 import csv
 import os
+import threading
 from collections import deque
 from pynput import mouse
 
 # 配置参数
 buffer_duration = 1.0  # 记录点击前 1 秒和后 1 秒的数据
+sampling_interval = 1 / 50  # 每秒最多 50 次采样（20 毫秒）
 save_directory = "mouse_clicks"  # 存储所有子表格
 click_count = 0  # 记录点击次数
+last_sample_time = 0  # 记录上次采样时间
 
 # 创建存储目录
 if not os.path.exists(save_directory):
@@ -21,13 +24,19 @@ click_events = []
 
 # 监听鼠标移动
 def on_move(x, y):
-    global is_recording_after_click, after_click_start_time
+    global is_recording_after_click, after_click_start_time, last_sample_time
 
     timestamp = time.time()
+
+    # 限制采样频率
+    if timestamp - last_sample_time < sampling_interval:
+        return  # 跳过此次记录
     
+    last_sample_time = timestamp  # 更新采样时间
+
     # 只保留 buffer_duration 内的移动数据（点击前 1 秒）
     mouse_buffer.append((timestamp, x, y))
-    
+
     # 移除超过 buffer_duration 以前的数据
     while mouse_buffer and timestamp - mouse_buffer[0][0] > buffer_duration:
         mouse_buffer.popleft()
@@ -59,14 +68,24 @@ def on_click(x, y, button, pressed):
         after_click_start_time = timestamp
         click_events.clear()
 
-        # 延迟 1 秒后保存数据
-        time.sleep(1.1)  # 确保后续数据已经收集
+        # **创建后台线程，在 1 秒后保存数据**
+        threading.Thread(target=delayed_save, args=(click_data,)).start()
 
-        # 生成文件路径
-        filename = os.path.join(save_directory, f"click_{click_count}.csv")
+# 后台保存数据（等待 1 秒收集数据后保存）
+def delayed_save(click_data):
+    global click_events
 
-        # 保存点击前后的数据
-        save_to_csv(filename, click_data + click_events)
+    # **等待 1 秒，确保收集点击后的数据**
+    time.sleep(1.1)
+
+    # 组合点击前后的数据
+    full_click_data = click_data + click_events
+
+    # 生成文件路径
+    filename = os.path.join(save_directory, f"click_{click_count}.csv")
+
+    # 保存数据
+    save_to_csv(filename, full_click_data)
 
 # 保存数据到 CSV（每次点击单独存储）
 def save_to_csv(filename, data):
